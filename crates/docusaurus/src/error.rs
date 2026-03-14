@@ -10,10 +10,8 @@ pub enum DocusaurusError {
     DylibLoad(#[from] libloading::Error),
     #[error("config() symbol returned invalid JSON: {0}")]
     ConfigJson(#[from] serde_json::Error),
-    #[error("node not found in PATH")]
-    NodeNotFound(#[from] which::Error),
-    #[error("docusau-rs addon not found in node_modules")]
-    AddonNotFound,
+    #[error("docusaurus binary not found in node_modules/.bin — is @docusaurus/core installed?")]
+    DocusaurusBinNotFound,
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
     #[error("docusaurus command failed with status {0}")]

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-use crate::bridge::{find_addon, find_node, write_temp_config};
+use crate::bridge::{find_docusaurus_bin, write_temp_json};
 use crate::compile::{compile_config, load_config};
 use crate::error::DocusaurusError;
 
@@ -11,55 +11,59 @@ pub struct RunnerOptions {
 }
 
 /// Compile `docusaurus.config.rs`, serialize the resulting config to JSON, write a
-/// temporary JS shim, then invoke the napi-rs addon via `node` as a subprocess.
+/// temporary JSON config file, then invoke the `docusaurus` CLI from `node_modules/.bin/`.
 ///
-/// `command` must match a named export of the `docusau-rs` addon (e.g. `"build"`, `"start"`).
+/// `command` is a Docusaurus CLI subcommand: `"build"`, `"start"`, `"serve"`, etc.
 pub fn run_command(command: &str, opts: RunnerOptions) -> Result<(), DocusaurusError> {
     let dylib = compile_config(&opts.site_dir)?;
     let config = load_config(&dylib)?;
     let config_json = serde_json::to_string(&config)?;
 
-    // Keep `_temp_file` alive until the node process finishes so the temp file exists.
-    let (_temp_file, config_path) = write_temp_config(&config_json)?;
+    // Keep `_temp_file` alive until the subprocess finishes so the file exists.
+    let (_temp_file, config_path) = write_temp_json(&config_json)?;
 
-    let node = find_node()?;
-    let addon = find_addon(&opts.site_dir)?;
+    let bin = find_docusaurus_bin(&opts.site_dir)?;
 
-    let site_dir_str = opts.site_dir.display().to_string();
-    let config_path_str = config_path.display().to_string();
-    let addon_path_str = addon.display().to_string();
-    // Strip null-valued keys so they don't override Docusaurus defaults.
-    // cli_options_json is passed as a JS string literal — the napi fn receives String,
-    // not an object. Escape backslashes and single-quotes for safe embedding.
-    let cli_options_filtered = match opts.cli_options {
-        serde_json::Value::Object(map) => serde_json::Value::Object(
-            map.into_iter()
-                .filter(|(_, v)| !v.is_null())
-                .collect(),
-        ),
-        other => other,
-    };
-    let cli_options_json = cli_options_filtered.to_string();
-    let escaped_opts = cli_options_json
-        .replace('\\', r"\\")
-        .replace('\'', r"\'");
+    let mut cmd = Command::new(bin);
+    cmd.current_dir(&opts.site_dir)
+        .arg(command)
+        .arg("--config")
+        .arg(&config_path);
 
-    // Inline JS that loads the napi-rs addon and calls the requested command.
-    // This is not execSync — it runs inside the same Node.js process via require().
-    let script = format!(
-        "require('{addon_path_str}').{command}('{site_dir_str}', '{config_path_str}', '{escaped_opts}');"
-    );
+    // Forward non-null CLI options as --key value flags.
+    // Object keys are expected in camelCase; convert to kebab-case for the CLI.
+    if let serde_json::Value::Object(map) = opts.cli_options {
+        for (key, val) in map {
+            if val.is_null() {
+                continue;
+            }
+            let flag = format!("--{}", camel_to_kebab(&key));
+            if val == serde_json::Value::Bool(true) {
+                cmd.arg(flag);
+            } else if val != serde_json::Value::Bool(false) {
+                cmd.arg(flag).arg(val.to_string().trim_matches('"').to_owned());
+            }
+        }
+    }
 
-    let node_modules = opts.site_dir.join("node_modules");
-    let status = Command::new(node)
-        .current_dir(&opts.site_dir)
-        .env("NODE_PATH", node_modules)
-        .args(["-e", &script])
-        .status()?;
+    let status = cmd.status()?;
 
     if !status.success() {
         return Err(DocusaurusError::CommandFailed(status.code().unwrap_or(-1)));
     }
 
     Ok(())
+}
+
+fn camel_to_kebab(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 4);
+    for ch in s.chars() {
+        if ch.is_uppercase() {
+            out.push('-');
+            out.extend(ch.to_lowercase());
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }

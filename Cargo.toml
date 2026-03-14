@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/docusaurus", "crates/docusaurus-node"]
+members = ["crates/docusaurus"]
 resolver = "2"
 
 [workspace.package]
