@@ -22,12 +22,8 @@ pub type PresetConfig = PluginConfig;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct I18nConfig {
-    pub locale: String,
+    pub default_locale: String,
     pub locales: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default_locale: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub locales_dir: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
 }
@@ -117,6 +113,7 @@ pub struct DocusaurusConfig {
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub themes: Vec<PluginConfig>,
 
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub static_directories: Vec<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]

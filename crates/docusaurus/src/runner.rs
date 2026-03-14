@@ -28,9 +28,18 @@ pub fn run_command(command: &str, opts: RunnerOptions) -> Result<(), DocusaurusE
     let site_dir_str = opts.site_dir.display().to_string();
     let config_path_str = config_path.display().to_string();
     let addon_path_str = addon.display().to_string();
+    // Strip null-valued keys so they don't override Docusaurus defaults.
     // cli_options_json is passed as a JS string literal — the napi fn receives String,
     // not an object. Escape backslashes and single-quotes for safe embedding.
-    let cli_options_json = opts.cli_options.to_string();
+    let cli_options_filtered = match opts.cli_options {
+        serde_json::Value::Object(map) => serde_json::Value::Object(
+            map.into_iter()
+                .filter(|(_, v)| !v.is_null())
+                .collect(),
+        ),
+        other => other,
+    };
+    let cli_options_json = cli_options_filtered.to_string();
     let escaped_opts = cli_options_json
         .replace('\\', r"\\")
         .replace('\'', r"\'");
@@ -41,7 +50,12 @@ pub fn run_command(command: &str, opts: RunnerOptions) -> Result<(), DocusaurusE
         "require('{addon_path_str}').{command}('{site_dir_str}', '{config_path_str}', '{escaped_opts}');"
     );
 
-    let status = Command::new(node).args(["-e", &script]).status()?;
+    let node_modules = opts.site_dir.join("node_modules");
+    let status = Command::new(node)
+        .current_dir(&opts.site_dir)
+        .env("NODE_PATH", node_modules)
+        .args(["-e", &script])
+        .status()?;
 
     if !status.success() {
         return Err(DocusaurusError::CommandFailed(status.code().unwrap_or(-1)));

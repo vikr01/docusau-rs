@@ -19,7 +19,7 @@ fn docusaurus_script(
     let config_path_esc = escape_js_string(config_path);
     format!(
         r#"(function() {{
-    const core = require('@docusaurus/core');
+    const core = require('@docusaurus/core/lib/index.js');
     if (typeof core.{command} !== 'function') {{
         throw new Error('@docusaurus/core does not export {command}');
     }}
@@ -114,7 +114,7 @@ pub fn clear(env: Env, site_dir: String) -> napi::Result<napi::JsObject> {
     let site_dir_esc = escape_js_string(&site_dir);
     let script = format!(
         r#"(function() {{
-    const core = require('@docusaurus/core');
+    const core = require('@docusaurus/core/lib/index.js');
     return core.clear('{site_dir_esc}', {{}});
 }})()"#,
         site_dir_esc = site_dir_esc,
