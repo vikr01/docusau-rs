@@ -1,0 +1,16 @@
+[package]
+name = "docusaurus-node"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+name = "docusau_rs"
+
+[dependencies]
+napi = { version = "2", features = ["async"] }
+napi-derive = "2"
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "rt-multi-thread"] }
