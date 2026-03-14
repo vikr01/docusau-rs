@@ -27,13 +27,13 @@ pub fn run_command(command: &str, opts: RunnerOptions) -> Result<(), DocusaurusE
     let node = find_node()?;
     let site_dir_str = opts.site_dir.display().to_string();
 
-    let mut cmd = Command::new(node);
-    cmd.arg(&shim_path)
+    let status = Command::new(node)
+        .env("NODE_PATH", opts.site_dir.join("node_modules"))
+        .arg(&shim_path)
         .arg(command)
         .arg(&site_dir_str)
-        .arg(&config_path);
-
-    let status = cmd.status()?;
+        .arg(&config_path)
+        .status()?;
 
     if !status.success() {
         return Err(DocusaurusError::CommandFailed(status.code().unwrap_or(-1)));

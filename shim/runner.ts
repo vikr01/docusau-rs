@@ -1,5 +1,4 @@
-import { createRequire } from 'module';
-import type * as Core from '@docusaurus/core';
+import * as core from '@docusaurus/core';
 
 const [,, command, siteDir, configPath] = process.argv;
 
@@ -8,10 +7,7 @@ if (!command || !siteDir || !configPath) {
   process.exit(1);
 }
 
-const req = createRequire(siteDir + '/');
-const core = req('@docusaurus/core') as typeof Core;
-
-type CoreKey = keyof typeof Core;
+type CoreKey = keyof typeof core;
 
 void (async () => {
   const fn = core[command as CoreKey];
