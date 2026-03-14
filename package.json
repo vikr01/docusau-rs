@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "dependencies": {
+    "@docusaurus/core": "^3.7.0"
+  },
+  "devDependencies": {
+    "@docusaurus/types": "^3.7.0",
+    "typescript": "^5.0.0"
+  }
+}

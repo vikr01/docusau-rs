@@ -1,9 +1,11 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-use crate::bridge::{find_docusaurus, write_temp_json};
+use crate::bridge::{find_node, write_temp_js, write_temp_json};
 use crate::compile::{compile_config, load_config};
 use crate::error::DocusaurusError;
+
+const RUNNER_JS: &str = include_str!(concat!(env!("OUT_DIR"), "/runner.js"));
 
 pub struct RunnerOptions {
     pub site_dir: PathBuf,
@@ -11,40 +13,25 @@ pub struct RunnerOptions {
 }
 
 /// Compile `docusaurus.config.rs`, serialize the resulting config to JSON, write a
-/// temporary JSON config file, then invoke the `docusaurus` CLI resolved via PATH.
+/// temporary JSON config file, then invoke the runner shim via node.
 ///
-/// `command` is a Docusaurus CLI subcommand: `"build"`, `"start"`, `"serve"`, etc.
+/// `command` is a Docusaurus API export name: `"build"`, `"start"`, `"serve"`, etc.
 pub fn run_command(command: &str, opts: RunnerOptions) -> Result<(), DocusaurusError> {
     let dylib = compile_config(&opts.site_dir)?;
     let config = load_config(&dylib)?;
     let config_json = serde_json::to_string(&config)?;
 
-    // Keep `_temp_file` alive until the subprocess finishes so the file exists.
-    let (_temp_file, config_path) = write_temp_json(&config_json)?;
+    let (_temp_config, config_path) = write_temp_json(&config_json)?;
+    let (_temp_shim, shim_path) = write_temp_js(RUNNER_JS)?;
 
-    let bin = find_docusaurus()?;
+    let node = find_node()?;
+    let site_dir_str = opts.site_dir.display().to_string();
 
-    let mut cmd = Command::new(bin);
-    cmd.current_dir(&opts.site_dir)
+    let mut cmd = Command::new(node);
+    cmd.arg(&shim_path)
         .arg(command)
-        .arg("--config")
+        .arg(&site_dir_str)
         .arg(&config_path);
-
-    // Forward non-null CLI options as --key value flags.
-    // Object keys are expected in camelCase; convert to kebab-case for the CLI.
-    if let serde_json::Value::Object(map) = opts.cli_options {
-        for (key, val) in map {
-            if val.is_null() {
-                continue;
-            }
-            let flag = format!("--{}", camel_to_kebab(&key));
-            if val == serde_json::Value::Bool(true) {
-                cmd.arg(flag);
-            } else if val != serde_json::Value::Bool(false) {
-                cmd.arg(flag).arg(val.to_string().trim_matches('"').to_owned());
-            }
-        }
-    }
 
     let status = cmd.status()?;
 
@@ -53,17 +40,4 @@ pub fn run_command(command: &str, opts: RunnerOptions) -> Result<(), DocusaurusE
     }
 
     Ok(())
-}
-
-fn camel_to_kebab(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + 4);
-    for ch in s.chars() {
-        if ch.is_uppercase() {
-            out.push('-');
-            out.extend(ch.to_lowercase());
-        } else {
-            out.push(ch);
-        }
-    }
-    out
 }
