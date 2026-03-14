@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-use crate::bridge::{find_node, write_temp_js, write_temp_json};
+use crate::bridge::{find_node, write_temp_in, write_temp_json};
 use crate::compile::{compile_config, load_config};
 use crate::error::DocusaurusError;
 
@@ -22,13 +22,13 @@ pub fn run_command(command: &str, opts: RunnerOptions) -> Result<(), DocusaurusE
     let config_json = serde_json::to_string(&config)?;
 
     let (_temp_config, config_path) = write_temp_json(&config_json)?;
-    let (_temp_shim, shim_path) = write_temp_js(RUNNER_JS)?;
+    // Shim lives inside site_dir so Node's upward module search finds @docusaurus/core.
+    let (_temp_shim, shim_path) = write_temp_in(RUNNER_JS, &opts.site_dir)?;
 
     let node = find_node()?;
     let site_dir_str = opts.site_dir.display().to_string();
 
     let status = Command::new(node)
-        .env("NODE_PATH", opts.site_dir.join("node_modules"))
         .arg(&shim_path)
         .arg(command)
         .arg(&site_dir_str)

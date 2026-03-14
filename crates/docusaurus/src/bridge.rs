@@ -23,11 +23,16 @@ pub fn write_temp_json(config_json: &str) -> Result<(NamedTempFile, PathBuf), Do
     Ok((file, path))
 }
 
-pub fn write_temp_js(js: &str) -> Result<(NamedTempFile, PathBuf), DocusaurusError> {
+/// Write `content` into a temporary file inside `dir` with no extension.
+///
+/// Placing the file inside the site directory lets Node.js resolve package
+/// imports naturally via its standard upward module search — no NODE_PATH needed.
+/// Node executes the file directly; no extension is required for that.
+pub fn write_temp_in(content: &str, dir: &std::path::Path) -> Result<(NamedTempFile, PathBuf), DocusaurusError> {
     use std::io::Write as _;
 
-    let mut file = tempfile::Builder::new().suffix(".js").tempfile()?;
-    file.write_all(js.as_bytes())?;
+    let mut file = tempfile::Builder::new().tempfile_in(dir)?;
+    file.write_all(content.as_bytes())?;
     file.flush()?;
 
     let path = file.path().to_path_buf();
