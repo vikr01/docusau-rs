@@ -146,8 +146,12 @@ pub fn write_translations(
     cli_options_json: String,
 ) -> napi::Result<napi::JsObject> {
     validate_json(&cli_options_json, "cli_options_json")?;
-    let script =
-        docusaurus_script("writeTranslations", &site_dir, &config_path, &cli_options_json);
+    let script = docusaurus_script(
+        "writeTranslations",
+        &site_dir,
+        &config_path,
+        &cli_options_json,
+    );
     let result: napi::JsUnknown = env.run_script(script)?;
     result.coerce_to_object()
 }
@@ -161,8 +165,12 @@ pub fn write_heading_ids(
     cli_options_json: String,
 ) -> napi::Result<napi::JsObject> {
     validate_json(&cli_options_json, "cli_options_json")?;
-    let script =
-        docusaurus_script("writeHeadingIds", &site_dir, &config_path, &cli_options_json);
+    let script = docusaurus_script(
+        "writeHeadingIds",
+        &site_dir,
+        &config_path,
+        &cli_options_json,
+    );
     let result: napi::JsUnknown = env.run_script(script)?;
     result.coerce_to_object()
 }

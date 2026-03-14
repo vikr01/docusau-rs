@@ -15,7 +15,10 @@ pub fn find_addon(site_dir: &Path) -> Result<PathBuf, DocusaurusError> {
     let addon_name = addon_filename();
     let mut dir = site_dir.to_path_buf();
     loop {
-        let candidate = dir.join("node_modules").join("docusau-rs").join(&addon_name);
+        let candidate = dir
+            .join("node_modules")
+            .join("docusau-rs")
+            .join(&addon_name);
         if candidate.exists() {
             return Ok(candidate);
         }
@@ -46,17 +49,16 @@ fn addon_filename() -> String {
 ///
 /// The returned `NamedTempFile` **must** be kept alive for as long as the path is in use;
 /// the file is deleted when the handle drops.
-pub fn write_temp_config(
-    config_json: &str,
-) -> Result<(NamedTempFile, PathBuf), DocusaurusError> {
+pub fn write_temp_config(config_json: &str) -> Result<(NamedTempFile, PathBuf), DocusaurusError> {
     use std::io::Write as _;
 
-    let escaped = config_json.replace('\\', r"\\").replace('\'', r"\'");
-    let js_content = format!("module.exports = JSON.parse('{escaped}');\n");
+    // JSON already contains double-quotes; embed using backtick template literal
+    // so neither single- nor double-quote escaping is needed. Only backticks and
+    // backslashes inside the JSON itself need escaping.
+    let escaped = config_json.replace('\\', r"\\").replace('`', r"\`");
+    let js_content = format!("module.exports = JSON.parse(`{escaped}`);\n");
 
-    let mut file = tempfile::Builder::new()
-        .suffix(".js")
-        .tempfile()?;
+    let mut file = tempfile::Builder::new().suffix(".js").tempfile()?;
     file.write_all(js_content.as_bytes())?;
     file.flush()?;
 

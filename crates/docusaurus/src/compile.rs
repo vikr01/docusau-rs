@@ -15,11 +15,25 @@ pub fn compile_config(site_dir: &Path) -> Result<PathBuf, DocusaurusError> {
         return Err(DocusaurusError::ConfigNotFound(site_dir.to_path_buf()));
     }
 
+    // Cargo requires the lib entry point to be at src/lib.rs. Copy docusaurus.config.rs
+    // there before building, then remove the copy after (the original is never touched).
+    let src_dir = site_dir.join("src");
+    std::fs::create_dir_all(&src_dir)?;
+    let lib_rs = src_dir.join("lib.rs");
+    let injected = !lib_rs.exists();
+    if injected {
+        std::fs::copy(&config_rs, &lib_rs)?;
+    }
+
     let manifest = site_dir.join("Cargo.toml");
     let output = Command::new("cargo")
         .args(["build", "--lib", "--manifest-path"])
         .arg(&manifest)
         .output()?;
+
+    if injected {
+        let _ = std::fs::remove_file(&lib_rs);
+    }
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();

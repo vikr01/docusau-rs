@@ -1,6 +1,4 @@
-use docusaurus::config::{
-    DocusaurusConfig, PluginConfig, ReportingSeverity,
-};
+use docusaurus::config::{DocusaurusConfig, PluginConfig, ReportingSeverity};
 
 #[test]
 fn default_values_match_upstream() {
@@ -8,10 +6,7 @@ fn default_values_match_upstream() {
     assert!(!cfg.no_index);
     assert_eq!(cfg.on_broken_links, ReportingSeverity::Throw);
     assert_eq!(cfg.on_broken_anchors, ReportingSeverity::Warn);
-    assert_eq!(
-        cfg.on_broken_markdown_links,
-        Some(ReportingSeverity::Warn)
-    );
+    assert_eq!(cfg.on_broken_markdown_links, Some(ReportingSeverity::Warn));
     assert_eq!(cfg.on_duplicate_routes, ReportingSeverity::Warn);
     assert!(cfg.base_url_issue_banner);
     assert_eq!(cfg.static_directories, vec!["static"]);

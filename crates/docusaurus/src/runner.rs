@@ -28,22 +28,23 @@ pub fn run_command(command: &str, opts: RunnerOptions) -> Result<(), DocusaurusE
     let site_dir_str = opts.site_dir.display().to_string();
     let config_path_str = config_path.display().to_string();
     let addon_path_str = addon.display().to_string();
+    // cli_options_json is passed as a JS string literal — the napi fn receives String,
+    // not an object. Escape backslashes and single-quotes for safe embedding.
     let cli_options_json = opts.cli_options.to_string();
+    let escaped_opts = cli_options_json
+        .replace('\\', r"\\")
+        .replace('\'', r"\'");
 
     // Inline JS that loads the napi-rs addon and calls the requested command.
     // This is not execSync — it runs inside the same Node.js process via require().
     let script = format!(
-        "require('{addon_path_str}').{command}('{site_dir_str}', '{config_path_str}', {cli_options_json});"
+        "require('{addon_path_str}').{command}('{site_dir_str}', '{config_path_str}', '{escaped_opts}');"
     );
 
-    let status = Command::new(node)
-        .args(["-e", &script])
-        .status()?;
+    let status = Command::new(node).args(["-e", &script]).status()?;
 
     if !status.success() {
-        return Err(DocusaurusError::CommandFailed(
-            status.code().unwrap_or(-1),
-        ));
+        return Err(DocusaurusError::CommandFailed(status.code().unwrap_or(-1)));
     }
 
     Ok(())

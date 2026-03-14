@@ -121,7 +121,13 @@ fn dispatch(cli: Cli) -> Result<(), docusaurus::DocusaurusError> {
                 "bundleAnalyzer": bundle_analyzer,
                 "minify": !no_minify,
             });
-            run_command("build", RunnerOptions { site_dir, cli_options })
+            run_command(
+                "build",
+                RunnerOptions {
+                    site_dir,
+                    cli_options,
+                },
+            )
         }
         Commands::Start {
             site_dir,
@@ -136,7 +142,13 @@ fn dispatch(cli: Cli) -> Result<(), docusaurus::DocusaurusError> {
                 "hotOnly": hot_only,
                 "open": !no_open,
             });
-            run_command("start", RunnerOptions { site_dir, cli_options })
+            run_command(
+                "start",
+                RunnerOptions {
+                    site_dir,
+                    cli_options,
+                },
+            )
         }
         Commands::Serve {
             site_dir,
@@ -153,14 +165,28 @@ fn dispatch(cli: Cli) -> Result<(), docusaurus::DocusaurusError> {
                 "build": build,
                 "open": !no_open,
             });
-            run_command("serve", RunnerOptions { site_dir, cli_options })
+            run_command(
+                "serve",
+                RunnerOptions {
+                    site_dir,
+                    cli_options,
+                },
+            )
         }
-        Commands::Deploy { site_dir } => {
-            run_command("deploy", RunnerOptions { site_dir, cli_options: serde_json::json!({}) })
-        }
-        Commands::Clear { site_dir } => {
-            run_command("clear", RunnerOptions { site_dir, cli_options: serde_json::json!({}) })
-        }
+        Commands::Deploy { site_dir } => run_command(
+            "deploy",
+            RunnerOptions {
+                site_dir,
+                cli_options: serde_json::json!({}),
+            },
+        ),
+        Commands::Clear { site_dir } => run_command(
+            "clear",
+            RunnerOptions {
+                site_dir,
+                cli_options: serde_json::json!({}),
+            },
+        ),
         Commands::Swizzle {
             site_dir,
             theme,
@@ -180,11 +206,23 @@ fn dispatch(cli: Cli) -> Result<(), docusaurus::DocusaurusError> {
                 "list": list,
                 "typescript": typescript,
             });
-            run_command("swizzle", RunnerOptions { site_dir, cli_options })
+            run_command(
+                "swizzle",
+                RunnerOptions {
+                    site_dir,
+                    cli_options,
+                },
+            )
         }
         Commands::WriteTranslations { site_dir, locale } => {
             let cli_options = serde_json::json!({ "locale": locale });
-            run_command("writeTranslations", RunnerOptions { site_dir, cli_options })
+            run_command(
+                "writeTranslations",
+                RunnerOptions {
+                    site_dir,
+                    cli_options,
+                },
+            )
         }
         Commands::WriteHeadingIds {
             site_dir,
@@ -201,7 +239,13 @@ fn dispatch(cli: Cli) -> Result<(), docusaurus::DocusaurusError> {
                 "maintainCase": maintain_case,
                 "overwrite": overwrite,
             });
-            run_command("writeHeadingIds", RunnerOptions { site_dir, cli_options })
+            run_command(
+                "writeHeadingIds",
+                RunnerOptions {
+                    site_dir,
+                    cli_options,
+                },
+            )
         }
     }
 }

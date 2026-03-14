@@ -78,8 +78,7 @@ fn compile_and_load_config() {
     let tmp = TempDir::new().unwrap();
     make_config_crate(tmp.path(), "Integration Test Site");
 
-    let dylib = docusaurus::compile_config(tmp.path())
-        .expect("compile_config should succeed");
+    let dylib = docusaurus::compile_config(tmp.path()).expect("compile_config should succeed");
     assert!(dylib.exists(), "dylib must exist at {}", dylib.display());
 
     let cfg = docusaurus::load_config(&dylib).expect("load_config should succeed");

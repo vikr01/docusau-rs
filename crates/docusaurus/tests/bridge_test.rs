@@ -18,8 +18,8 @@ fn find_node_returns_existing_path() {
 #[test]
 fn write_temp_config_produces_module_exports() {
     let json = r#"{"title":"Hello","url":"https://example.com","baseUrl":"/"}"#;
-    let (_handle, path) = docusaurus::bridge::write_temp_config(json)
-        .expect("write_temp_config should succeed");
+    let (_handle, path) =
+        docusaurus::bridge::write_temp_config(json).expect("write_temp_config should succeed");
 
     assert!(path.exists(), "temp file must exist while handle is alive");
     assert_eq!(
@@ -33,10 +33,7 @@ fn write_temp_config_produces_module_exports() {
         contents.starts_with("module.exports = JSON.parse("),
         "must start with module.exports assignment"
     );
-    assert!(
-        contents.contains("Hello"),
-        "must contain config content"
-    );
+    assert!(contents.contains("Hello"), "must contain config content");
 }
 
 #[test]
@@ -78,13 +75,10 @@ fn find_addon_locates_node_in_fake_structure() {
     let subdir = tmp.path().join("packages").join("site");
     fs::create_dir_all(&subdir).unwrap();
 
-    let addon = docusaurus::bridge::find_addon(&subdir)
-        .expect("find_addon should locate the .node file");
+    let addon =
+        docusaurus::bridge::find_addon(&subdir).expect("find_addon should locate the .node file");
     assert!(addon.exists(), "returned addon path must exist");
-    assert_eq!(
-        addon.extension().and_then(|e| e.to_str()),
-        Some("node")
-    );
+    assert_eq!(addon.extension().and_then(|e| e.to_str()), Some("node"));
 }
 
 #[test]
