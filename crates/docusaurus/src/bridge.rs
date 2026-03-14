@@ -52,10 +52,15 @@ fn addon_filename() -> String {
 pub fn write_temp_config(config_json: &str) -> Result<(NamedTempFile, PathBuf), DocusaurusError> {
     use std::io::Write as _;
 
-    // JSON already contains double-quotes; embed using backtick template literal
-    // so neither single- nor double-quote escaping is needed. Only backticks and
-    // backslashes inside the JSON itself need escaping.
-    let escaped = config_json.replace('\\', r"\\").replace('`', r"\`");
+    // Embed the JSON string in a JS template literal. Three sequences must be escaped,
+    // applied in order (E₁ first so later steps cannot re-introduce lone backslashes):
+    //   E₁  \   → \\   (prevent unintended escape sequences)
+    //   E₂  `   → \`   (prevent template literal from closing)
+    //   E₃  ${  → \${  (prevent template interpolation)
+    let escaped = config_json
+        .replace('\\', r"\\")
+        .replace('`', r"\`")
+        .replace("${", r"\${");
     let js_content = format!("module.exports = JSON.parse(`{escaped}`);\n");
 
     let mut file = tempfile::Builder::new().suffix(".js").tempfile()?;

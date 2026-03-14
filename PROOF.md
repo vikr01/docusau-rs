@@ -1,312 +1,180 @@
 # Proof of Site Equivalence
 
-**Theorem (Site Equivalence).** For every `cfg : DocusaurusConfig` and site directory `d`,
-the site produced by docusau-rs is identical to the site Docusaurus would produce from the
-`docusaurus.config.js` that encodes the same configuration.
+**Theorem** *(conditional on axioms A1–A4, stated in §5).*  For every well-formed Rust
+config `cfg` and site directory `d`, `PIPELINE(cfg, d) = BASELINE(cfg, d)`,
+where BASELINE is native Docusaurus invoked with the semantically equivalent JS config.
 
 ---
 
-## 1. Definitions
+## 1. Architecture
 
-Let the following sets be given:
-
-- **R** — the set of all values of type `DocusaurusConfig` (the Rust type)
-- **J** — the set of all JavaScript objects accepted by `@docusaurus/types validateConfig`
-- **N** — the set of all valid JSON strings (UTF-8, no embedded NUL)
-- **Site** — the set of all deterministic static site file trees (path → bytes maps)
-
-Define the following functions:
+docusau-rs is a **config adapter**. It does not reimplement Docusaurus. The build, serve,
+and deploy steps execute `@docusaurus/core`'s own exported functions:
 
 ```
-S   : R → N           serde_json::to_string (Rust → JSON string)
-T   : N → string      write_temp_config     (JSON string → temp .js path)
-L   : path → J        loadSiteConfig        (Docusaurus config loader)
-B   : J × path → Site build                 (@docusaurus/core build function)
+PIPELINE(cfg, d)   :=  B(L(S(cfg)), d)
+BASELINE(cfg, d)   :=  B(L(J(cfg)),  d)
 ```
 
-The **pipeline** docusau-rs executes for a given `cfg ∈ R` and site dir `d` is:
+where:
+- **B** = `@docusaurus/core`'s `docusaurus_build` — identical in both cases
+- **L** = `@docusaurus/core`'s `load_config` (includes Joi validation) — identical in both cases
+- **S(cfg)** = the JS object produced by serializing the Rust config via serde
+- **J(cfg)** = the JS object produced by the semantically equivalent hand-written JS config
 
-```
-PIPELINE(cfg, d):
-  n    ← S(cfg)
-  p    ← T(n)
-  j    ← L(p)          // config_path passed as cliOptions.config
-  site ← B(j, d)
-  return site
-```
-
-The **baseline** Docusaurus executes for an equivalent JS config `j₀ ∈ J`:
-
-```
-BASELINE(j₀, d):
-  site ← B(j₀, d)
-  return site
-```
-
-**Claim:** PIPELINE(cfg, d) = BASELINE(φ(cfg), d) for all cfg ∈ R and d,
-where φ : R → J is the canonical embedding defined in §2.
+The only difference between PIPELINE and BASELINE is whether the config object reaching L
+was produced by S or by J.
 
 ---
 
-## 2. Type Isomorphism — φ : R → J
+## 2. Reduction
 
-We must show that for every field `f` of `DocusaurusConfig` there is a
-corresponding field in `@docusaurus/types DocusaurusConfig`, with matching type and semantics.
+The theorem reduces to a single claim:
 
-**Definition (φ).** Given `cfg ∈ R`, define `φ(cfg) ∈ J` by the field mapping:
+> **Claim.**  S(cfg) = J(cfg)  for every well-formed cfg.
 
-```
-Rust field (snake_case)           JS field (camelCase)      Type in @docusaurus/types
-───────────────────────────────── ───────────────────────── ──────────────────────────
-title          : String           title          : string   required
-url            : String           url            : string   required
-base_url       : String           baseUrl        : string   required
-tag_line       : Option<String>   tagline        : string?
-favicon        : Option<String>   favicon        : string?
-no_index       : bool             noIndex        : boolean   default false
-on_broken_links: ReportingSeverity onBrokenLinks : ReportingSeverity  default "throw"
-on_broken_anchors              …  onBrokenAnchors …         default "warn"
-on_broken_markdown_links       …  onBrokenMarkdownLinks …   default "warn"
-on_duplicate_routes            …  onDuplicateRoutes …       default "warn"
-base_url_issue_banner: bool       baseUrlIssueBanner: bool  default true
-plugins        : Vec<PluginConfig> plugins       : PluginConfig[]
-presets        : Vec<PresetConfig> presets       : PresetConfig[]
-themes         : Vec<PluginConfig> themes        : PluginConfig[]
-static_directories: Vec<String>   staticDirectories: string[] default ["static"]
-title_delimiter: Option<String>   titleDelimiter: string?   default "|"
-i18n           : Option<I18nConfig> i18n         : I18nConfig?
-future         : Option<FutureConfig> future      : FutureConfig?
-scripts        : Vec<ScriptEntry> scripts        : (string|ScriptAttrs)[]
-stylesheets    : Vec<StylesheetEntry> stylesheets: (string|StylesheetAttrs)[]
-head_tags      : Vec<HtmlTagObject> headTags     : HtmlTagObject[]
-client_modules : Vec<String>      clientModules  : string[]
-markdown       : Option<MarkdownConfig> markdown : MarkdownConfig?
-custom_fields  : Option<Value>    customFields   : {[key:string]:unknown}?
-```
-
-**Lemma 2.1 (Surjectivity of required fields).** The three fields required by `Config`
-(`title`, `url`, `baseUrl`) all appear as required (non-Optional) fields in `DocusaurusConfig`.
-∴ every `cfg ∈ R` produces a `j = φ(cfg)` that satisfies Docusaurus's required-field check.
-
-**Lemma 2.2 (Default agreement).** The `Default` impl for `DocusaurusConfig` sets:
-
-```
-on_broken_links          = ReportingSeverity::Throw   ↔  "throw"  ✓
-on_broken_anchors        = ReportingSeverity::Warn    ↔  "warn"   ✓
-on_broken_markdown_links = Some(Warn)                 ↔  "warn"   ✓
-on_duplicate_routes      = ReportingSeverity::Warn    ↔  "warn"   ✓
-no_index                 = false                                   ✓
-base_url_issue_banner    = true                                    ✓
-static_directories       = ["static"]                              ✓
-title_delimiter          = Some("|")                               ✓
-```
-
-Each matches the upstream default documented in `packages/docusaurus-types/src/config.d.ts`.
-
-**Lemma 2.3 (Enum bijection).** `ReportingSeverity` maps:
-
-```
-Rust variant        serde output    JS ReportingSeverity
-──────────────────  ──────────────  ────────────────────
-::Ignore            "ignore"        "ignore"
-::Log               "log"           "log"
-::Warn              "warn"          "warn"
-::Throw             "throw"         "throw"
-```
-
-`#[serde(rename_all = "lowercase")]` makes all four arms bijective with the JS string union.
-
-**Lemma 2.4 (PluginConfig bijection).** `PluginConfig::Named(s)` serializes as the bare
-string `s`; `PluginConfig::WithOptions(s, v)` serializes as the two-element JSON array
-`[s, v]`. These are exactly the two forms `@docusaurus/types PluginConfig` accepts
-(`string | [string, object]`). `#[serde(untagged)]` produces this encoding directly.
-
-∴ φ is well-defined and total. □
+*Proof that the claim implies the theorem.*
+L is deterministic: same input → same output.
+∴ S(cfg) = J(cfg) ⟹ L(S(cfg)) = L(J(cfg)).
+B is deterministic: same validated config and same site directory → same output.
+∴ L(S(cfg)) = L(J(cfg)) ⟹ B(L(S(cfg)), d) = B(L(J(cfg)), d).
+∴ PIPELINE(cfg, d) = BASELINE(cfg, d). □
 
 ---
 
-## 3. Serialization Round-Trip — S then L
+## 3. Proof of the Claim
 
-**Lemma 3.1 (S is injective on JSON-representable values).**
-`serde_json::to_string` on a `#[derive(Serialize)]` struct with `rename_all = "camelCase"`
-produces a JSON object where:
-- every field key is the camelCase version of the Rust field name
-- every `Option::None` field annotated `#[serde(skip_serializing_if = "Option::is_none")]`
-  is absent from the output
-- every `Vec` field annotated `#[serde(skip_serializing_if = "Vec::is_empty")]`
-  is absent when empty
-- primitive Rust values map to their JSON counterparts (bool→bool, String→string, etc.)
+The claim S(cfg) = J(cfg) has two parts:
 
-This matches the shape `validateConfig` in `packages/docusaurus/src/server/configValidation.ts`
-accepts, since that function treats absent optional keys identically to `undefined` in JS.
+### 3.1 The design invariant (A1)
 
-**Lemma 3.2 (T is transparent).** `write_temp_config(n)` writes:
+**A1 (Design Invariant).** For every field of `DocusaurusConfig`, the value produced by
+serde serialization matches the value a semantically equivalent hand-written JS config
+would export for that field.
 
-```js
-module.exports = JSON.parse(`{n_escaped}`);
-```
+`DocusaurusConfig` is defined to structurally mirror `@docusaurus/types`'s `DocusaurusConfig`.
+The serde mapping is:
 
-where `n_escaped` is `n` with `\` → `\\` and `` ` `` → `` \` ``. Since `n ∈ N`
-(valid JSON, no embedded NUL), and JSON does not contain backticks, the escaping is a
-no-op on all JSON produced by `serde_json::to_string`. Therefore:
+- field names: `#[serde(rename_all = "camelCase")]` at struct level; exceptions explicit via
+  `#[serde(rename = "...")]`
+- absent optionals: `#[serde(skip_serializing_if = "Option::is_none")]` — omitted rather than
+  null, matching JS where optional fields are simply absent
+- enums: `#[serde(rename_all = "lowercase")]` for severity values (`"ignore"`, `"log"`, etc.);
+  `#[serde(untagged)]` for sum types (`PluginConfig`) — produces bare value or array,
+  matching the `name | [name, options]` JS convention
+- empty lists: `#[serde(skip_serializing_if = "Vec::is_empty")]` — omitted, matching JS defaults
 
-```
-JSON.parse(`{n_escaped}`) = JSON.parse(n) = φ(cfg)   as a JS object
-```
+This mapping is the **design invariant** of the crate: A1 asserts it holds for every field.
+The Joi schema in `@docusaurus/core` then normalizes both objects identically,
+so L(S(cfg)) = L(J(cfg)) follows from S(cfg) = J(cfg).
 
-**Lemma 3.3 (L recovers φ(cfg)).** Docusaurus's `loadSiteConfig` calls:
+### 3.2 E is an identity on content
 
-```
-loadFreshModule(configPath)         // dynamic import / require of the .js file
-```
-
-For a CJS `.js` file the result is `module.exports`. Therefore:
+`S(cfg)` produces a JSON string n. E transforms n into E(n) via three sequential
+substitutions applied in order:
 
 ```
-L(T(S(cfg))) = JSON.parse(S(cfg)) = φ(cfg)
+  E₁ :  \   →  \\
+  E₂ :  `   →  \`
+  E₃ :  ${  →  \${
 ```
 
-by Lemmas 3.1 and 3.2. □
+These are the only three sequences with special meaning at the **lexer level** of a JS
+template literal (ECMAScript 2023 §13.2.8): `\` begins an escape sequence, `` ` `` closes
+the literal, and `${` is recognized by the lexer as the start of a template expression.
+Escaping them prevents the lexer from treating them as syntax.
+
+**Claim.**  The JS module `module.exports = JSON.parse(\`E(n)\`)` exports the same object
+that `JSON.parse(n)` would produce.
+
+*Proof.*  E is applied in a fixed order; we show each step is safe and that the composed
+result embeds n faithfully.
+
+*Step 1 — E₁.* Replace every `\` with `\\`. After this step, no lone backslash remains
+in the string. In particular, E₁ introduces only `\\` sequences and cannot produce `` \` ``
+or `\${`.
+
+*Step 2 — E₂.* Replace every `` ` `` with `` \` ``. The `\` introduced here originates from
+E₂ alone (E₁ already doubled all prior backslashes), so no double-escaping ambiguity arises.
+
+*Step 3 — E₃.* Replace every `${` with `\${`. Any `${` still present at this point is
+literal content (not yet an escape sequence), and the introduced `\` has no prior backslash
+adjacent to it (E₁ handled all original backslashes, and E₂ produces only the two-character
+sequence `` \` `` — which ends with a backtick, not `$` — and therefore cannot create a new
+`${` that E₃ would then spuriously match).
+
+The resulting string E(n), embedded in the template literal, is parsed by the JS lexer as
+a sequence of `TemplateCharacter` tokens. Each escape introduced by E₁–E₃ is inverted
+exactly by the ECMAScript 2023 §12.9.6 template value (TV) rules for untagged template
+literals:
+
+| Escape in E(n) | Introduced by | Lexer rule                               | TV (content) |
+|----------------|---------------|------------------------------------------|--------------|
+| `\\`           | E₁            | SingleEscapeCharacter `\` → `\`          | `\`          |
+| `` \` ``       | E₂            | SingleEscapeCharacter `` ` `` → `` ` ``  | `` ` ``      |
+| `\${`          | E₃            | `\$` = NonEscapeCharacter → `$`; `{` bare character → `{` | `${` |
+
+(`$` is a NonEscapeCharacter because it is neither a SingleEscapeCharacter nor a digit nor
+`x` nor `u` nor a LineTerminator — ECMAScript 2023 §12.9.6.)
+
+All other characters pass through verbatim. The TV of the whole template is therefore
+exactly n.
+
+Note: E(n) appears only in the **template literal source**. The JS engine evaluates the
+template literal first, recovering the original string n as its TV, and only then passes n
+to JSON.parse. JSON.parse never sees E(n); it sees n. The escape sequences in E(n) are a
+source-level concern, fully resolved by template evaluation before JSON.parse is invoked.
+
+∴ eval_tmpl(E(n)) = n, and JSON.parse(eval_tmpl(E(n))) = JSON.parse(n). □
+
+Because S(cfg) embeds n via E and the JS module exports the value recovered by eval_tmpl(E(n)),
+the JS object obtained is the same as if n had been parsed directly.
+
+### 3.3 Conclusion
+
+By 3.1, the pre-validation JS object is the same (A1).
+By 3.2, E does not alter content.
+∴ S(cfg) = J(cfg), and by §2, PIPELINE(cfg, d) = BASELINE(cfg, d). □
 
 ---
 
-## 4. Config Validation Preservation
+## 4. Corollaries
 
-`loadSiteConfig` passes the loaded object through `validateConfig` (Joi schema).
-We must show that `φ(cfg)` passes this validation for all `cfg ∈ R`.
+### 4.1 Forward compatibility
 
-**Lemma 4.1 (Joi schema coverage).** The Joi schema in `configValidation.ts` validates:
+When `@docusaurus/core` adds new config fields, the pipeline requires no structural change.
+Any field the user adds to their Rust config serializes through S unchanged. If the new field
+is typed in Rust, A1 (§3.1) extends to it by the same serde mapping rules. If it is
+untyped, `serde_json::Value` carries it verbatim. In both cases the object reaching L is
+identical to what a hand-written JS config would produce. Docusaurus's own Joi schema accepts
+or rejects it — no docusau-rs code needs to change.
 
-```
-title       : Joi.string().required()
-url         : Joi.string().required()
-baseUrl     : Joi.string().required()
-onBrokenLinks: Joi.string().valid("ignore","log","warn","throw")
-...
-```
+### 4.2 Plugin support (JS and Rust)
 
-By Lemmas 2.1–2.4, every field produced by `S(cfg)` lies within the accepted domain of the
-corresponding Joi validator. Fields absent from the JSON (skipped `None` / empty `Vec`)
-are treated as `undefined` by Joi and fall through to their schema defaults — identical
-to the behavior when those fields are omitted from a handwritten `docusaurus.config.js`.
+Plugin entries are `Named(String)` or `WithOptions(String, serde_json::Value)`. Both serialize
+to either a bare string or a two-element array — the JS `name | [name, options]` convention.
+The values are opaque to docusau-rs: it does not interpret them.
 
-∴ `validateConfig(φ(cfg))` succeeds for all `cfg ∈ R`. □
+- **JS plugins**: referenced by npm package name or path. S passes the string through; L's
+  plugin loader receives it identically to a hand-written JS config.
+- **Rust plugins**: compiled to a `.node` napi-rs addon, then referenced by filesystem path.
+  From L's perspective this is a Node.js module exporting a plugin factory — the same contract
+  as any JS plugin.
 
----
-
-## 5. Build Determinism
-
-**Lemma 5.1 (B is deterministic given equal config and source).** Docusaurus's build
-pipeline is a pure function of:
-
-1. The normalized config object `j` (post-validation)
-2. The contents of the site directory `d` (docs, static, src)
-
-Given the same `(j, d)`, `@docusaurus/core build` produces the same `Site`. This follows
-from Docusaurus's design: no random seeds, no timestamps written to output, no non-hermetic
-I/O beyond reading `d` and the npm dependency tree.
-
-**Corollary 5.1.** If two config objects `j₁` and `j₂` are equal as JS values, then:
-
-```
-B(j₁, d) = B(j₂, d)   ∀ d
-```
+∴ plugin fields are config fields; the main theorem (§3) covers them without modification.
 
 ---
 
-## 6. Main Theorem
+## 5. Assumptions
 
-**Theorem (Site Equivalence).** For all `cfg ∈ R`, `j₀ ∈ J`, and site dir `d`,
-if `j₀ = φ(cfg)` then:
+**A1.** `DocusaurusConfig` and its serde attributes faithfully mirror `@docusaurus/types`'s
+`DocusaurusConfig`. The mapping rules are stated in §3.1; correctness is a design invariant
+maintained by the crate, verified against the Joi schema.
 
-```
-PIPELINE(cfg, d) = BASELINE(j₀, d)
-```
+**A2.** E is an identity on content (proved in §3.2).
 
-**Proof.**
+**A3.** B and L are deterministic: same inputs → same outputs. This holds for
+`@docusaurus/core`'s pipeline; user-installed plugins with external side effects are outside scope.
 
-```
-PIPELINE(cfg, d)
-  = B(L(T(S(cfg))), d)      by definition of PIPELINE
-  = B(φ(cfg), d)             by Lemma 3.3
-  = B(j₀, d)                 by hypothesis j₀ = φ(cfg)
-  = BASELINE(j₀, d)          by definition of BASELINE
-```
-
-∴ PIPELINE(cfg, d) = BASELINE(j₀, d). □
-
----
-
-## 7. Boundaries of the Proof
-
-The theorem holds under the following assumptions:
-
-**A1 (ABI contract).** The user's `docusaurus.config.rs` correctly implements:
-```rust
-#[no_mangle]
-pub extern "C" fn config() -> *mut std::os::raw::c_char
-```
-returning a heap-allocated, NUL-terminated, valid JSON string. Violations are
-undefined behavior in the C ABI sense — outside the scope of this proof.
-
-**A2 (Allocator agreement).** The dylib and the host binary share a system allocator,
-so `CString::from_raw(raw)` correctly frees the pointer returned by `config()`.
-This holds on Linux/macOS/Windows for Rust cdylibs compiled with the default allocator.
-
-**A3 (FutureConfig coverage).** `FutureConfig` in docusau-rs currently exposes only
-`experimental_faster`. Fields introduced in Docusaurus v4 (`v4`, `experimental_vcs`,
-`experimental_router`) are not yet modelled in `R`. For those fields the proof holds
-only over the currently-modelled subset: `φ` is defined on that subset, and `S` omits
-unmodelled fields, which causes Docusaurus to apply its own defaults — identical to
-omitting those fields from a JS config.
-
-**A4 (Docusaurus version pinning).** The bijection φ (§2) is proved against
-`@docusaurus/core ^3` as of 2026-03-14. Breaking changes to `validateConfig` or the
-field schema in future minor/major releases may invalidate Lemma 4.1 and require
-updating `DocusaurusConfig` accordingly.
-
-**A5 (themeConfig opacity).** `themeConfig` is typed as `{[key:string]:unknown}` in
-both Rust (`serde_json::Value`) and JS. Its correctness is the responsibility of the
-consumer; docusau-rs passes it through unvalidated.
-
----
-
-## 8. Pseudocode Summary (Knuth style)
-
-```
-DOCUSAU-RS-PIPELINE(cfg, d)
-  ▷ cfg : DocusaurusConfig (Rust value)
-  ▷ d   : path (site directory)
-
-  n ← SERIALIZE(cfg)
-    ▷ serde_json::to_string(&cfg)
-    ▷ produces JSON object with camelCase keys, absent keys for None/empty
-
-  p ← WRITE-TEMP-CONFIG(n)
-    ▷ escape ← n with \ → \\ and ` → \`
-    ▷ write "module.exports = JSON.parse(`escape`);\n" to tmp/*.js
-    ▷ return absolute path p; file lives until handle drops
-
-  j ← LOAD-SITE-CONFIG(p)
-    ▷ Docusaurus loadFreshModule(p) → require(p) → module.exports
-    ▷ = JSON.parse(n) = φ(cfg)           ▷ by Lemma 3.2
-    ▷ validateConfig(j) passes           ▷ by Lemma 4.1
-
-  site ← BUILD(j, d)
-    ▷ @docusaurus/core build(d, { config: p, ...cliOptions })
-    ▷ deterministic given (j, d)         ▷ by Lemma 5.1
-
-  delete tmp file
-  return site
-```
-
-```
-EQUIVALENCE-CHECK(cfg, j₀, d)
-  ▷ Verify PIPELINE(cfg, d) = BASELINE(j₀, d)
-  ▷ Precondition: j₀ = φ(cfg)
-
-  assert φ(cfg) = j₀              ▷ by definition of φ (§2)
-  assert L(T(S(cfg))) = φ(cfg)    ▷ by Lemma 3.3
-  assert B(φ(cfg), d) = B(j₀, d) ▷ by Corollary 5.1
-  return true
-```
+**A4.** The C FFI layer correctly conveys the serialized config string without corruption
+(valid UTF-8, no truncation, correct allocator pairing).
