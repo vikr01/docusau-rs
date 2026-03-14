@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-use crate::bridge::{find_docusaurus_bin, write_temp_json};
+use crate::bridge::{find_docusaurus, write_temp_json};
 use crate::compile::{compile_config, load_config};
 use crate::error::DocusaurusError;
 
@@ -11,7 +11,7 @@ pub struct RunnerOptions {
 }
 
 /// Compile `docusaurus.config.rs`, serialize the resulting config to JSON, write a
-/// temporary JSON config file, then invoke the `docusaurus` CLI from `node_modules/.bin/`.
+/// temporary JSON config file, then invoke the `docusaurus` CLI resolved via PATH.
 ///
 /// `command` is a Docusaurus CLI subcommand: `"build"`, `"start"`, `"serve"`, etc.
 pub fn run_command(command: &str, opts: RunnerOptions) -> Result<(), DocusaurusError> {
@@ -22,7 +22,7 @@ pub fn run_command(command: &str, opts: RunnerOptions) -> Result<(), DocusaurusE
     // Keep `_temp_file` alive until the subprocess finishes so the file exists.
     let (_temp_file, config_path) = write_temp_json(&config_json)?;
 
-    let bin = find_docusaurus_bin(&opts.site_dir)?;
+    let bin = find_docusaurus()?;
 
     let mut cmd = Command::new(bin);
     cmd.current_dir(&opts.site_dir)

@@ -1,22 +1,12 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use tempfile::NamedTempFile;
 
 use crate::error::DocusaurusError;
 
-/// Walk up from `site_dir` until a `node_modules/.bin/docusaurus` executable is found.
-pub fn find_docusaurus_bin(site_dir: &Path) -> Result<PathBuf, DocusaurusError> {
-    let mut dir = site_dir.to_path_buf();
-    loop {
-        let candidate = dir.join("node_modules").join(".bin").join("docusaurus");
-        if candidate.exists() {
-            return Ok(candidate);
-        }
-        match dir.parent() {
-            Some(parent) => dir = parent.to_path_buf(),
-            None => return Err(DocusaurusError::DocusaurusBinNotFound),
-        }
-    }
+/// Locate the `docusaurus` binary via PATH.
+pub fn find_docusaurus() -> Result<PathBuf, DocusaurusError> {
+    Ok(which::which("docusaurus")?)
 }
 
 /// Write `config_json` into a temporary `.json` file.
