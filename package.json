@@ -5,6 +5,7 @@
   },
   "devDependencies": {
     "@docusaurus/types": "^3.7.0",
+    "@tsconfig/node18": "^18.2.6",
     "typescript": "^5.0.0"
   }
 }
