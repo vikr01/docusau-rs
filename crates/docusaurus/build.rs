@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::process::Command;
 
 fn main() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -9,20 +10,30 @@ fn main() {
         .parent()
         .expect("workspace root");
 
-    let vendor_js = workspace_root.join("vendor").join("runner.js");
+    let shim_ts = workspace_root.join("shim").join("runner.ts");
+    let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
 
-    if !vendor_js.exists() {
-        panic!(
-            "vendor/runner.js not found — run `tsc` at the workspace root to compile the shim"
-        );
+    // Locate tsc via PATH.
+    let tsc = which::which("tsc")
+        .expect("tsc not found in PATH — install typescript: npm install -g typescript");
+
+    let status = Command::new(tsc)
+        .arg(&shim_ts)
+        .arg("--outDir")
+        .arg(&out_dir)
+        .arg("--target")
+        .arg("ES2020")
+        .arg("--module")
+        .arg("commonjs")
+        .arg("--esModuleInterop")
+        .arg("--skipLibCheck")
+        .arg("--strict")
+        .status()
+        .expect("failed to invoke tsc");
+
+    if !status.success() {
+        panic!("tsc compilation of shim/runner.ts failed");
     }
 
-    let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
-    std::fs::copy(&vendor_js, out_dir.join("runner.js")).unwrap();
-
-    println!("cargo:rerun-if-changed={}", vendor_js.display());
-    println!(
-        "cargo:rerun-if-changed={}",
-        workspace_root.join("shim").join("runner.ts").display()
-    );
+    println!("cargo:rerun-if-changed={}", shim_ts.display());
 }
