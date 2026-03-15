@@ -24,7 +24,12 @@ thiserror = "2"
 which = "7"
 
 [build-dependencies]
-which = "7"
+oxc_allocator = "0.119"
+oxc_codegen = "0.119"
+oxc_parser = "0.119"
+oxc_semantic = "0.119"
+oxc_span = "0.119"
+oxc_transformer = "0.119"
 
 [dev-dependencies]
 assert_cmd = "2"

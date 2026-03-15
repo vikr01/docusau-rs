@@ -1,9 +1,34 @@
-use std::path::PathBuf;
-use std::process::Command;
+use std::path::{Path, PathBuf};
+
+use oxc_allocator::Allocator;
+use oxc_codegen::Codegen;
+use oxc_parser::Parser;
+use oxc_semantic::SemanticBuilder;
+use oxc_span::SourceType;
+use oxc_transformer::{Module, TransformOptions, Transformer};
+
+fn transpile_ts(path: &Path, source: &str) -> String {
+    let allocator = Allocator::default();
+    let source_type = SourceType::from_path(path).expect("unrecognised source type");
+
+    let parse = Parser::new(&allocator, source, source_type).parse();
+    assert!(parse.errors.is_empty(), "parse errors in shim: {:?}", parse.errors);
+
+    let mut program = parse.program;
+    let scoping = SemanticBuilder::new().build(&program).semantic.into_scoping();
+
+    let mut opts = TransformOptions::default();
+    opts.env.module = Module::CommonJS;
+
+    let result = Transformer::new(&allocator, path, &opts)
+        .build_with_scoping(scoping, &mut program);
+    assert!(result.errors.is_empty(), "transform errors in shim: {:?}", result.errors);
+
+    Codegen::new().build(&program).code
+}
 
 fn main() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    // Walk up: crates/docusaurus → crates → workspace root
     let workspace_root = manifest_dir
         .parent()
         .expect("crate parent")
@@ -13,27 +38,13 @@ fn main() {
     let shim_ts = workspace_root.join("shim").join("runner.ts");
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
 
-    // Locate tsc via PATH.
-    let tsc = which::which("tsc")
-        .expect("tsc not found in PATH — install typescript: npm install -g typescript");
+    let source = std::fs::read_to_string(&shim_ts)
+        .unwrap_or_else(|e| panic!("cannot read {}: {e}", shim_ts.display()));
 
-    let status = Command::new(tsc)
-        .arg(&shim_ts)
-        .arg("--outDir")
-        .arg(&out_dir)
-        .arg("--target")
-        .arg("ES2020")
-        .arg("--module")
-        .arg("commonjs")
-        .arg("--esModuleInterop")
-        .arg("--skipLibCheck")
-        .arg("--strict")
-        .status()
-        .expect("failed to invoke tsc");
+    let js = transpile_ts(&shim_ts, &source);
 
-    if !status.success() {
-        panic!("tsc compilation of shim/runner.ts failed");
-    }
+    std::fs::write(out_dir.join("runner.js"), js)
+        .expect("cannot write runner.js to OUT_DIR");
 
     println!("cargo:rerun-if-changed={}", shim_ts.display());
 }
